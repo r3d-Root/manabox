@@ -1,6 +1,7 @@
 from flask import Flask
 from .extensions import db, oauth, smorest_api
 
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object("config.Config")
@@ -18,6 +19,8 @@ def create_app():
     smorest_api.register_blueprint(api_bp)
 
     with app.app_context():
+        from .models.scryfall import ScryfallCard
+        from .models.sync_status import SyncStatus
         db.create_all()
 
     return app

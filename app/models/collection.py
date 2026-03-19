@@ -1,6 +1,7 @@
 from sqlalchemy import Table, Column, Integer, Text
 from app.extensions import db
 
+
 def normalize_column_name(name: str) -> str:
     value = name.strip().lower()
     value = value.replace(" ", "_").replace("-", "_").replace("/", "_")
@@ -10,6 +11,7 @@ def normalize_column_name(name: str) -> str:
     if value[0].isdigit():
         value = f"col_{value}"
     return value
+
 
 def build_collection_table(column_names):
     columns = [Column("id", Integer, primary_key=True, autoincrement=True)]

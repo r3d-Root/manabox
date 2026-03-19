@@ -1,9 +1,10 @@
-from flask import Blueprint, url_for, redirect, session, flash
+from flask import Blueprint, url_for, redirect, session, flash, current_app
 from app.extensions import oauth
 from app.services.drive import load_manabox_csv
-from app.services.importer import import_collection_csv
+from app.services.importer import import_collection_csv, start_scryfall_sync_background
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
+
 
 @auth_bp.record_once
 def setup_google(state):
@@ -18,6 +19,7 @@ def setup_google(state):
         },
     )
 
+
 @auth_bp.route("/login")
 def login():
     redirect_uri = url_for("auth.callback", _external=True)
@@ -25,7 +27,9 @@ def login():
         redirect_uri,
         prompt="consent",
         access_type="offline",
-        )
+        include_granted_scopes="true",
+    )
+
 
 @auth_bp.route("/callback")
 def callback():
@@ -42,11 +46,13 @@ def callback():
     try:
         csv_bytes = load_manabox_csv(token["access_token"])
         import_collection_csv(csv_bytes)
-        flash("Loaded ManaBox_Collection.csv from Google Drive.", "success")
+        start_scryfall_sync_background(current_app._get_current_object())
+        flash("Loaded ManaBox collection. Scryfall sync started.", "success")
     except Exception as exc:
         flash(f"Could not load collection: {exc}", "danger")
 
     return redirect(url_for("web.index"))
+
 
 @auth_bp.route("/logout")
 def logout():
