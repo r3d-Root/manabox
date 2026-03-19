@@ -8,11 +8,6 @@
       <p class="text-secondary">Sign in with Google to load your collection.</p>
       <a class="btn btn-primary" href="{{ url_for('auth.login') }}">Login with Google</a>
     </div>
-  {% elif not cards %}
-    <div class="text-center py-5">
-      <h2>No collection loaded</h2>
-      <p class="text-secondary">Nothing was imported yet.</p>
-    </div>
   {% else %}
     <div id="syncStatusCard" class="card shadow-sm mb-3 sync-card" style="display: none;">
       <div class="card-body">
@@ -43,37 +38,25 @@
     <div class="card shadow-sm mb-3">
       <div class="card-body">
         <div class="row g-2">
-          <div class="col-12 col-md-3 col-lg-2">
+          <div class="col-12 col-md-4 col-lg-3">
             <label class="form-label mb-1" for="setFilter">Set</label>
             <select id="setFilter" class="form-select form-select-sm">
               <option value="">All</option>
             </select>
           </div>
-          <div class="col-12 col-md-3 col-lg-2">
+          <div class="col-12 col-md-4 col-lg-3">
             <label class="form-label mb-1" for="rarityFilter">Rarity</label>
             <select id="rarityFilter" class="form-select form-select-sm">
               <option value="">All</option>
             </select>
           </div>
-          <div class="col-12 col-md-3 col-lg-2">
-            <label class="form-label mb-1" for="foilFilter">Finish</label>
-            <select id="foilFilter" class="form-select form-select-sm">
+          <div class="col-12 col-md-4 col-lg-3">
+            <label class="form-label mb-1" for="finishFilter">Finish</label>
+            <select id="finishFilter" class="form-select form-select-sm">
               <option value="">All</option>
             </select>
           </div>
-          <div class="col-12 col-md-3 col-lg-2">
-            <label class="form-label mb-1" for="conditionFilter">Condition</label>
-            <select id="conditionFilter" class="form-select form-select-sm">
-              <option value="">All</option>
-            </select>
-          </div>
-          <div class="col-12 col-md-3 col-lg-2">
-            <label class="form-label mb-1" for="languageFilter">Language</label>
-            <select id="languageFilter" class="form-select form-select-sm">
-              <option value="">All</option>
-            </select>
-          </div>
-          <div class="col-12 col-md-3 col-lg-2 d-flex align-items-end">
+          <div class="col-12 col-lg-3 d-flex align-items-end">
             <button id="clearFiltersBtn" class="btn btn-outline-secondary btn-sm w-100">Clear Filters</button>
           </div>
         </div>
@@ -88,65 +71,14 @@
               <th>Image</th>
               <th>Name</th>
               <th>Set</th>
-              <th>#</th>
               <th>Rarity</th>
               <th>Mana Cost</th>
               <th>Type</th>
               <th>Qty</th>
-              <th>Foil</th>
-              <th>Condition</th>
-              <th>Language</th>
+              <th>Finish</th>
+              <th>Avg Price</th>
             </tr>
           </thead>
-          <tbody>
-            {% for card in cards %}
-              <tr data-row-id="{{ card.row_id }}" data-scryfall-id="{{ card.scryfall_id or '' }}">
-                <td class="js-card-image">
-                  {% if card.image_small %}
-                    <img
-                      src="{{ card.image_small }}"
-                      alt="{{ card.name or 'Card image' }}"
-                      class="card-thumb js-preview-target"
-                      data-preview-image="{{ card.image_normal or card.image_small }}"
-                    >
-                  {% endif %}
-                </td>
-                <td class="js-card-name">
-                  {% if card.name %}
-                    {% if card.scryfall_uri %}
-                      <a
-                        href="{{ card.scryfall_uri }}"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="js-preview-target"
-                        data-preview-image="{{ card.image_normal or card.image_small or '' }}"
-                      >
-                        {{ card.name }}
-                      </a>
-                    {% else %}
-                      <span
-                        class="js-preview-target"
-                        data-preview-image="{{ card.image_normal or card.image_small or '' }}"
-                      >
-                        {{ card.name }}
-                      </span>
-                    {% endif %}
-                  {% else %}
-                    Unknown
-                  {% endif %}
-                </td>
-                <td class="js-card-set">{% if card.set_code %}{{ card.set_code.upper() }}{% endif %}</td>
-                <td class="js-card-collector">{{ card.collector_number or "" }}</td>
-                <td class="js-card-rarity">{{ card.rarity or "" }}</td>
-                <td class="js-card-mana">{{ card.mana_cost or "" }}</td>
-                <td class="js-card-type">{{ card.type_line or "" }}</td>
-                <td class="js-card-qty">{{ card.quantity or "" }}</td>
-                <td class="js-card-foil">{{ card.foil or "" }}</td>
-                <td class="js-card-condition">{{ card.condition or "" }}</td>
-                <td class="js-card-language">{{ card.language or "" }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
         </table>
       </div>
     </div>
@@ -158,12 +90,10 @@
 {% endblock %}
 
 {% block scripts %}
-  {% if cards %}
+  {% if user %}
   <script>
-    const pageLoadedAt = {{ page_loaded_at|tojson }};
-    let lastUpdatedAt = pageLoadedAt;
-    let progressPolling = true;
-    let updatePolling = true;
+    let syncPollingActive = false;
+    let syncReloadTimer = null;
     let lastSeenError = null;
 
     function escapeHtml(value) {
@@ -176,91 +106,88 @@
         .replace(/'/g, '&#039;');
     }
 
-    function stripHtml(value) {
-      const div = document.createElement('div');
-      div.innerHTML = value ?? '';
-      return div.textContent.trim();
+    function loadFilterOptions() {
+      fetch('/api/filter-options')
+        .then((response) => response.json())
+        .then((data) => {
+          populateSelect('setFilter', data.sets || []);
+          populateSelect('rarityFilter', data.rarities || []);
+          populateSelect('finishFilter', data.finishes || []);
+        })
+        .catch((err) => {
+          console.error('Failed to load filter options', err);
+        });
     }
 
-    const table = new DataTable('#collectionTable', {
-      pageLength: 50,
-      order: [[1, 'asc']]
-    });
-
-    function applyExactFilter(selectId, columnIndex) {
-      const select = document.getElementById(selectId);
-      const value = select.value;
-      const escaped = $.fn.dataTable.util.escapeRegex(value);
-      table.column(columnIndex).search(value ? `^${escaped}$` : '', true, false).draw();
-    }
-
-    function populateSelect(selectId, columnIndex) {
-      const select = document.getElementById(selectId);
-      const currentValue = select.value;
-      const values = new Set();
-
-      table.column(columnIndex).data().toArray().forEach((value) => {
-        const clean = stripHtml(value);
-        if (clean) {
-          values.add(clean);
-        }
-      });
-
-      const sorted = Array.from(values).sort((a, b) => a.localeCompare(b));
+    function populateSelect(id, values) {
+      const select = document.getElementById(id);
+      const current = select.value;
 
       select.innerHTML = '<option value="">All</option>';
-      sorted.forEach((value) => {
+      values.forEach((value) => {
         const option = document.createElement('option');
         option.value = value;
         option.textContent = value;
         select.appendChild(option);
       });
 
-      if (sorted.includes(currentValue)) {
-        select.value = currentValue;
+      if (values.includes(current)) {
+        select.value = current;
       }
     }
 
-    function rebuildFilters() {
-      populateSelect('setFilter', 2);
-      populateSelect('rarityFilter', 4);
-      populateSelect('foilFilter', 8);
-      populateSelect('conditionFilter', 9);
-      populateSelect('languageFilter', 10);
+    function manaCostToHtml(cost) {
+      if (!cost) return '';
+
+      const tokens = cost.match(/\{[^}]+\}/g) || [];
+      return tokens.map((token) => {
+        const raw = token.slice(1, -1);
+        const encoded = encodeURIComponent(raw);
+        return `
+          <img
+            src="https://svgs.scryfall.io/card-symbols/${encoded}.svg"
+            alt="${escapeHtml(token)}"
+            class="mana-symbol"
+          >
+        `;
+      }).join('');
     }
 
-    document.getElementById('setFilter').addEventListener('change', () => applyExactFilter('setFilter', 2));
-    document.getElementById('rarityFilter').addEventListener('change', () => applyExactFilter('rarityFilter', 4));
-    document.getElementById('foilFilter').addEventListener('change', () => applyExactFilter('foilFilter', 8));
-    document.getElementById('conditionFilter').addEventListener('change', () => applyExactFilter('conditionFilter', 9));
-    document.getElementById('languageFilter').addEventListener('change', () => applyExactFilter('languageFilter', 10));
+    function renderImageCell(data, type, row) {
+      if (type !== 'display') {
+        return row.name || '';
+      }
 
-    document.getElementById('clearFiltersBtn').addEventListener('click', () => {
-      ['setFilter', 'rarityFilter', 'foilFilter', 'conditionFilter', 'languageFilter'].forEach((id) => {
-        document.getElementById(id).value = '';
-      });
+      if (!row.image_small) {
+        return '';
+      }
 
-      [2, 4, 8, 9, 10].forEach((columnIndex) => {
-        table.column(columnIndex).search('', true, false);
-      });
+      return `
+        <img
+          src="${escapeHtml(row.image_small)}"
+          alt="${escapeHtml(row.name || 'Card image')}"
+          class="card-thumb js-preview-target"
+          data-preview-image="${escapeHtml(row.image_normal || row.image_small)}"
+        >
+      `;
+    }
 
-      table.draw();
-    });
+    function renderNameCell(data, type, row) {
+      if (type !== 'display') {
+        return row.name || '';
+      }
 
-    rebuildFilters();
+      const name = escapeHtml(row.name || 'Unknown');
+      const preview = escapeHtml(row.image_normal || row.image_small || '');
 
-    function renderNameCell(card) {
-      const previewImage = escapeHtml(card.image_normal || card.image_small || '');
-      const name = escapeHtml(card.name || 'Unknown');
-
-      if (card.scryfall_uri) {
+      if (row.scryfall_uri) {
         return `
           <a
-            href="${escapeHtml(card.scryfall_uri)}"
+            href="${escapeHtml(row.scryfall_uri)}"
             target="_blank"
             rel="noopener noreferrer"
             class="js-preview-target"
-            data-preview-image="${previewImage}"
+            data-preview-image="${preview}"
           >
             ${name}
           </a>
@@ -268,73 +195,88 @@
       }
 
       return `
-        <span class="js-preview-target" data-preview-image="${previewImage}">
+        <span
+          class="js-preview-target"
+          data-preview-image="${preview}"
+        >
           ${name}
         </span>
       `;
     }
 
-    function renderImageCell(card) {
-      if (!card.image_small) {
+    function renderManaCell(data, type) {
+      if (type !== 'display') {
+        return data || '';
+      }
+      return `<div class="mana-cost-cell">${manaCostToHtml(data)}</div>`;
+    }
+
+    function renderPriceCell(data, type) {
+      const numeric = parseFloat(data);
+
+      if (type === 'sort' || type === 'type') {
+        return Number.isFinite(numeric) ? numeric : -1;
+      }
+
+      if (!Number.isFinite(numeric)) {
         return '';
       }
 
-      return `
-        <img
-          src="${escapeHtml(card.image_small)}"
-          alt="${escapeHtml(card.name || 'Card image')}"
-          class="card-thumb js-preview-target"
-          data-preview-image="${escapeHtml(card.image_normal || card.image_small)}"
-        >
-      `;
+      return `$${numeric.toFixed(2)}`;
     }
 
-    function applyCardUpdate(card) {
-      const rows = document.querySelectorAll(`tr[data-scryfall-id="${CSS.escape(card.scryfall_id)}"]`);
+    const table = new DataTable('#collectionTable', {
+      processing: true,
+      serverSide: true,
+      pageLength: 50,
+      searching: true,
+      order: [[1, 'asc']],
+      ajax: {
+        url: '/api/table-data',
+        data: function (d) {
+          d.set_filter = document.getElementById('setFilter').value;
+          d.rarity_filter = document.getElementById('rarityFilter').value;
+          d.finish_filter = document.getElementById('finishFilter').value;
+        }
+      },
+      columns: [
+        { data: 'image_small', render: renderImageCell, orderable: true, searchable: false },
+        { data: 'name', render: renderNameCell },
+        { data: 'set_code' },
+        { data: 'rarity' },
+        { data: 'mana_cost', render: renderManaCell },
+        { data: 'type_line' },
+        { data: 'quantity' },
+        { data: 'finish' },
+        { data: 'avg_price', render: renderPriceCell }
+      ]
+    });
 
-      rows.forEach((row) => {
-        row.querySelector('.js-card-image').innerHTML = renderImageCell(card);
-        row.querySelector('.js-card-name').innerHTML = renderNameCell(card);
-        row.querySelector('.js-card-set').textContent = card.set_code ? card.set_code.toUpperCase() : '';
-        row.querySelector('.js-card-collector').textContent = card.collector_number || '';
-        row.querySelector('.js-card-rarity').textContent = card.rarity || '';
-        row.querySelector('.js-card-mana').textContent = card.mana_cost || '';
-        row.querySelector('.js-card-type').textContent = card.type_line || '';
+    ['setFilter', 'rarityFilter', 'finishFilter'].forEach((id) => {
+      document.getElementById(id).addEventListener('change', () => {
+        table.ajax.reload();
       });
+    });
 
-      table.rows().invalidate().draw(false);
+    document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+      document.getElementById('setFilter').value = '';
+      document.getElementById('rarityFilter').value = '';
+      document.getElementById('finishFilter').value = '';
+      table.search('');
+      table.ajax.reload();
+    });
+
+    function scheduleTableRefresh() {
+      if (syncReloadTimer) return;
+
+      syncReloadTimer = window.setTimeout(() => {
+        table.ajax.reload(null, false);
+        loadFilterOptions();
+        syncReloadTimer = null;
+      }, 2500);
     }
 
-    async function pollUpdatedCards() {
-      if (!updatePolling) return;
-
-      try {
-        let url = '/api/updated-cards';
-        if (lastUpdatedAt) {
-          url += `?since=${encodeURIComponent(lastUpdatedAt)}`;
-        }
-
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.cards && data.cards.length) {
-          data.cards.forEach((card) => {
-            applyCardUpdate(card);
-          });
-
-          lastUpdatedAt = data.cards[data.cards.length - 1].updated_at;
-          rebuildFilters();
-        }
-      } catch (err) {
-        console.error('Failed to fetch updated cards', err);
-      } finally {
-        window.setTimeout(pollUpdatedCards, 1500);
-      }
-    }
-
-    async function pollSyncStatus() {
-      if (!progressPolling) return;
-
+    async function checkSyncStatus() {
       try {
         const response = await fetch('/api/sync-status');
         const data = await response.json();
@@ -346,7 +288,8 @@
 
         const running = data.is_running || (data.total_cards > 0 && data.processed_cards < data.total_cards);
 
-        if (running || data.total_cards > 0) {
+        if (running) {
+          syncPollingActive = true;
           card.style.display = 'block';
           bar.style.width = `${data.percent}%`;
           bar.textContent = `${data.percent}%`;
@@ -365,27 +308,30 @@
             pushFlash(data.last_error, 'danger', 7000);
           }
 
-          if (!data.is_running && data.total_cards > 0 && data.processed_cards >= data.total_cards) {
-            progressPolling = false;
-
-            bar.classList.remove('progress-bar-animated');
-            bar.classList.remove('progress-bar-striped');
-            bar.classList.add('bg-success');
-
-            currentCard.textContent = 'Sync complete';
-
-            window.setTimeout(() => {
-              card.style.display = 'none';
-            }, 4000);
-
-            return;
-          }
+          scheduleTableRefresh();
+          window.setTimeout(checkSyncStatus, 1000);
+          return;
         }
 
-        window.setTimeout(pollSyncStatus, 1000);
+        if (data.total_cards > 0 && data.processed_cards >= data.total_cards) {
+          card.style.display = 'block';
+          bar.style.width = '100%';
+          bar.textContent = '100%';
+          progressText.textContent = `${data.processed_cards} of ${data.total_cards}`;
+          currentCard.textContent = 'Sync complete';
+          bar.classList.remove('progress-bar-animated');
+          bar.classList.remove('progress-bar-striped');
+          bar.classList.add('bg-success');
+
+          table.ajax.reload(null, false);
+          loadFilterOptions();
+
+          window.setTimeout(() => {
+            card.style.display = 'none';
+          }, 3000);
+        }
       } catch (err) {
         console.error('Failed to fetch sync status', err);
-        window.setTimeout(pollSyncStatus, 2000);
       }
     }
 
@@ -396,7 +342,6 @@
       const gap = 20;
       let left = event.clientX + gap;
       let top = event.clientY - 40;
-
       const width = 320;
       const height = 445;
 
@@ -447,8 +392,8 @@
       }
     });
 
-    pollSyncStatus();
-    pollUpdatedCards();
+    loadFilterOptions();
+    checkSyncStatus();
   </script>
   {% endif %}
 {% endblock %}

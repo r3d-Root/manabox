@@ -17,4 +17,6 @@ class ScryfallCard(db.Model):
     image_small = db.Column(db.Text, nullable=True)
     image_normal = db.Column(db.Text, nullable=True)
     scryfall_uri = db.Column(db.Text, nullable=True)
+    usd = db.Column(db.Text, nullable=True)
+    usd_foil = db.Column(db.Text, nullable=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)

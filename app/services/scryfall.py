@@ -34,6 +34,7 @@ def chunked(values, size):
 
 def build_card_model(card_json: dict):
     image_small, image_normal = extract_images(card_json)
+    prices = card_json.get("prices") or {}
 
     return ScryfallCard(
         scryfall_id=card_json.get("id"),
@@ -48,6 +49,8 @@ def build_card_model(card_json: dict):
         image_small=image_small,
         image_normal=image_normal,
         scryfall_uri=card_json.get("scryfall_uri"),
+        usd=prices.get("usd"),
+        usd_foil=prices.get("usd_foil"),
         updated_at=datetime.utcnow(),
     )
 
@@ -55,12 +58,15 @@ def build_card_model(card_json: dict):
 def fetch_cards_collection_batch(scryfall_ids):
     identifiers = [{"id": scryfall_id} for scryfall_id in scryfall_ids]
 
+    last_response = None
+
     for attempt in range(MAX_RETRIES):
         response = requests.post(
             SCRYFALL_COLLECTION_API,
             json={"identifiers": identifiers},
             timeout=60,
         )
+        last_response = response
 
         if response.status_code == 429:
             sleep_seconds = min(2 ** attempt, 8)
@@ -70,8 +76,10 @@ def fetch_cards_collection_batch(scryfall_ids):
         response.raise_for_status()
         return response.json()
 
-    response.raise_for_status()
-    return response.json()
+    if last_response is not None:
+        last_response.raise_for_status()
+
+    raise RuntimeError("Scryfall batch request failed without a response.")
 
 
 def upsert_scryfall_cards_batch(scryfall_ids):
@@ -93,6 +101,9 @@ def upsert_scryfall_cards_batch(scryfall_ids):
         if not scryfall_id:
             continue
 
+        prices = card_json.get("prices") or {}
+        image_small, image_normal = extract_images(card_json)
+
         existing = db.session.get(ScryfallCard, scryfall_id)
         if existing:
             existing.name = card_json.get("name")
@@ -103,10 +114,11 @@ def upsert_scryfall_cards_batch(scryfall_ids):
             existing.mana_cost = card_json.get("mana_cost")
             existing.type_line = card_json.get("type_line")
             existing.oracle_text = card_json.get("oracle_text")
-            image_small, image_normal = extract_images(card_json)
             existing.image_small = image_small
             existing.image_normal = image_normal
             existing.scryfall_uri = card_json.get("scryfall_uri")
+            existing.usd = prices.get("usd")
+            existing.usd_foil = prices.get("usd_foil")
             existing.updated_at = datetime.utcnow()
         else:
             db.session.add(build_card_model(card_json))

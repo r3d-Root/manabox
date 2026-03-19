@@ -20,20 +20,44 @@ class SyncStatusSchema(Schema):
     percent = fields.Float(required=True)
 
 
-class UpdatedCardSchema(Schema):
-    scryfall_id = fields.String(required=True)
+class FilterOptionsSchema(Schema):
+    sets = fields.List(fields.String(), required=True)
+    rarities = fields.List(fields.String(), required=True)
+    finishes = fields.List(fields.String(), required=True)
+
+
+class TableRowSchema(Schema):
+    scryfall_id = fields.String(allow_none=True)
     name = fields.String(allow_none=True)
     set_code = fields.String(allow_none=True)
     set_name = fields.String(allow_none=True)
-    collector_number = fields.String(allow_none=True)
     rarity = fields.String(allow_none=True)
     mana_cost = fields.String(allow_none=True)
     type_line = fields.String(allow_none=True)
     image_small = fields.String(allow_none=True)
     image_normal = fields.String(allow_none=True)
     scryfall_uri = fields.String(allow_none=True)
-    updated_at = fields.String(required=True)
+    finish = fields.String(allow_none=True)
+    quantity = fields.Integer(allow_none=True)
+    avg_price = fields.String(allow_none=True)
 
 
-class UpdatedCardsResponseSchema(Schema):
-    cards = fields.List(fields.Nested(UpdatedCardSchema), required=True)
+class TableDataResponseSchema(Schema):
+    draw = fields.Integer(required=True)
+    recordsTotal = fields.Integer(required=True)
+    recordsFiltered = fields.Integer(required=True)
+    data = fields.List(fields.Nested(TableRowSchema), required=True)
+
+
+class TableDataQuerySchema(Schema):
+    draw = fields.Integer(load_default=1)
+    start = fields.Integer(load_default=0)
+    length = fields.Integer(load_default=50)
+
+    search_value = fields.String(load_default="", data_key="search[value]")
+    order_column = fields.String(load_default="1", data_key="order[0][column]")
+    order_dir = fields.String(load_default="asc", data_key="order[0][dir]")
+
+    set_filter = fields.String(load_default="")
+    rarity_filter = fields.String(load_default="")
+    finish_filter = fields.String(load_default="")

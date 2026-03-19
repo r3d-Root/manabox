@@ -150,6 +150,19 @@ div.dt-container .dt-paging {
   display: block;
 }
 
+.mana-cost-cell {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: nowrap;
+}
+
+.mana-symbol {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+}
+
 div.dt-container div.dt-layout-row {
   margin: 0.5rem 0;
 }
