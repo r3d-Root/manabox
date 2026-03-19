@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,15 +7,16 @@
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/2.0.8/css/dataTables.bootstrap5.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='app.css') }}" rel="stylesheet">
 </head>
 <body>
-  <nav class="navbar navbar-dark bg-dark">
+  <nav class="navbar navbar-expand-lg border-bottom">
     <div class="container-fluid">
-      <span class="navbar-brand">ManaBox Collection</span>
+      <span class="navbar-brand mb-0 h1">ManaBox Collection</span>
 
       <div class="d-flex gap-2 align-items-center">
         {% if user %}
-          <span class="navbar-text text-light">{{ user.email }}</span>
+          <span class="navbar-text">{{ user.email }}</span>
           <a class="btn btn-outline-light btn-sm" href="{{ url_for('auth.logout') }}">Logout</a>
         {% else %}
           <a class="btn btn-primary btn-sm" href="{{ url_for('auth.login') }}">Login with Google</a>
@@ -24,12 +25,19 @@
     </div>
   </nav>
 
+  <div id="clientFlashContainer" class="flash-stack"></div>
+
   <main class="container-fluid py-4">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }}">{{ message }}</div>
-        {% endfor %}
+        <div class="server-flashes">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show auto-dismiss" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        </div>
       {% endif %}
     {% endwith %}
 
@@ -40,6 +48,32 @@
   <script src="https://cdn.datatables.net/2.0.8/js/dataTables.js"></script>
   <script src="https://cdn.datatables.net/2.0.8/js/dataTables.bootstrap5.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    function pushFlash(message, level = 'warning', timeout = 5000) {
+      const container = document.getElementById('clientFlashContainer');
+      const wrapper = document.createElement('div');
+      wrapper.className = `alert alert-${level} alert-dismissible fade show shadow-sm`;
+      wrapper.role = 'alert';
+      wrapper.innerHTML = `
+        <span>${message}</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      `;
+      container.appendChild(wrapper);
+
+      window.setTimeout(() => {
+        const alert = bootstrap.Alert.getOrCreateInstance(wrapper);
+        alert.close();
+      }, timeout);
+    }
+
+    document.querySelectorAll('.auto-dismiss').forEach((el) => {
+      window.setTimeout(() => {
+        const alert = bootstrap.Alert.getOrCreateInstance(el);
+        alert.close();
+      }, 5000);
+    });
+  </script>
 
   {% block scripts %}{% endblock %}
 </body>

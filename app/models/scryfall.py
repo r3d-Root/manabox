@@ -1,3 +1,4 @@
+from datetime import datetime
 from app.extensions import db
 
 
@@ -16,3 +17,4 @@ class ScryfallCard(db.Model):
     image_small = db.Column(db.Text, nullable=True)
     image_normal = db.Column(db.Text, nullable=True)
     scryfall_uri = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)

@@ -5,16 +5,16 @@
   {% if not user %}
     <div class="text-center py-5">
       <h1 class="mb-3">ManaBox Collection Viewer</h1>
-      <p class="text-muted">Sign in with Google to load your collection.</p>
+      <p class="text-secondary">Sign in with Google to load your collection.</p>
       <a class="btn btn-primary" href="{{ url_for('auth.login') }}">Login with Google</a>
     </div>
   {% elif not cards %}
     <div class="text-center py-5">
       <h2>No collection loaded</h2>
-      <p class="text-muted">Nothing was imported yet.</p>
+      <p class="text-secondary">Nothing was imported yet.</p>
     </div>
   {% else %}
-    <div id="syncStatusCard" class="card shadow-sm mb-3" style="display: none;">
+    <div id="syncStatusCard" class="card shadow-sm mb-3 sync-card" style="display: none;">
       <div class="card-body">
         <h5 class="card-title mb-3">Syncing with Scryfall</h5>
 
@@ -33,12 +33,50 @@
           <span id="syncProgressText">0 of 0</span>
         </p>
 
-        <p class="mb-1">
-          <strong>Current card:</strong>
+        <p class="mb-0">
+          <strong>Current batch:</strong>
           <span id="syncCurrentCard">Waiting...</span>
         </p>
+      </div>
+    </div>
 
-        <p class="mb-0 text-danger" id="syncErrorText" style="display: none;"></p>
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-12 col-md-3 col-lg-2">
+            <label class="form-label mb-1" for="setFilter">Set</label>
+            <select id="setFilter" class="form-select form-select-sm">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-3 col-lg-2">
+            <label class="form-label mb-1" for="rarityFilter">Rarity</label>
+            <select id="rarityFilter" class="form-select form-select-sm">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-3 col-lg-2">
+            <label class="form-label mb-1" for="foilFilter">Finish</label>
+            <select id="foilFilter" class="form-select form-select-sm">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-3 col-lg-2">
+            <label class="form-label mb-1" for="conditionFilter">Condition</label>
+            <select id="conditionFilter" class="form-select form-select-sm">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-3 col-lg-2">
+            <label class="form-label mb-1" for="languageFilter">Language</label>
+            <select id="languageFilter" class="form-select form-select-sm">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-3 col-lg-2 d-flex align-items-end">
+            <button id="clearFiltersBtn" class="btn btn-outline-secondary btn-sm w-100">Clear Filters</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -62,33 +100,59 @@
           </thead>
           <tbody>
             {% for card in cards %}
-              <tr>
-                <td>
+              <tr data-row-id="{{ card.row_id }}" data-scryfall-id="{{ card.scryfall_id or '' }}">
+                <td class="js-card-image">
                   {% if card.image_small %}
-                    <img src="{{ card.image_small }}" alt="{{ card.name or 'Card image' }}" style="width: 60px;">
+                    <img
+                      src="{{ card.image_small }}"
+                      alt="{{ card.name or 'Card image' }}"
+                      class="card-thumb js-preview-target"
+                      data-preview-image="{{ card.image_normal or card.image_small }}"
+                    >
                   {% endif %}
                 </td>
-                <td>
-                  {% if card.scryfall_uri %}
-                    <a href="{{ card.scryfall_uri }}" target="_blank">{{ card.name or "Unknown" }}</a>
+                <td class="js-card-name">
+                  {% if card.name %}
+                    {% if card.scryfall_uri %}
+                      <a
+                        href="{{ card.scryfall_uri }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="js-preview-target"
+                        data-preview-image="{{ card.image_normal or card.image_small or '' }}"
+                      >
+                        {{ card.name }}
+                      </a>
+                    {% else %}
+                      <span
+                        class="js-preview-target"
+                        data-preview-image="{{ card.image_normal or card.image_small or '' }}"
+                      >
+                        {{ card.name }}
+                      </span>
+                    {% endif %}
                   {% else %}
-                    {{ card.name or "Unknown" }}
+                    Unknown
                   {% endif %}
                 </td>
-                <td>{% if card.set_code %}{{ card.set_code.upper() }}{% endif %}</td>
-                <td>{{ card.collector_number or "" }}</td>
-                <td>{{ card.rarity or "" }}</td>
-                <td>{{ card.mana_cost or "" }}</td>
-                <td>{{ card.type_line or "" }}</td>
-                <td>{{ card.quantity or "" }}</td>
-                <td>{{ card.foil or "" }}</td>
-                <td>{{ card.condition or "" }}</td>
-                <td>{{ card.language or "" }}</td>
+                <td class="js-card-set">{% if card.set_code %}{{ card.set_code.upper() }}{% endif %}</td>
+                <td class="js-card-collector">{{ card.collector_number or "" }}</td>
+                <td class="js-card-rarity">{{ card.rarity or "" }}</td>
+                <td class="js-card-mana">{{ card.mana_cost or "" }}</td>
+                <td class="js-card-type">{{ card.type_line or "" }}</td>
+                <td class="js-card-qty">{{ card.quantity or "" }}</td>
+                <td class="js-card-foil">{{ card.foil or "" }}</td>
+                <td class="js-card-condition">{{ card.condition or "" }}</td>
+                <td class="js-card-language">{{ card.language or "" }}</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+    </div>
+
+    <div id="hoverPreview" class="hover-preview" style="display: none;">
+      <img id="hoverPreviewImage" src="" alt="Card preview">
     </div>
   {% endif %}
 {% endblock %}
@@ -96,15 +160,180 @@
 {% block scripts %}
   {% if cards %}
   <script>
-    new DataTable('#collectionTable', {
+    const pageLoadedAt = {{ page_loaded_at|tojson }};
+    let lastUpdatedAt = pageLoadedAt;
+    let progressPolling = true;
+    let updatePolling = true;
+    let lastSeenError = null;
+
+    function escapeHtml(value) {
+      if (value === null || value === undefined) return '';
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function stripHtml(value) {
+      const div = document.createElement('div');
+      div.innerHTML = value ?? '';
+      return div.textContent.trim();
+    }
+
+    const table = new DataTable('#collectionTable', {
       pageLength: 50,
       order: [[1, 'asc']]
     });
 
-    let polling = true;
+    function applyExactFilter(selectId, columnIndex) {
+      const select = document.getElementById(selectId);
+      const value = select.value;
+      const escaped = $.fn.dataTable.util.escapeRegex(value);
+      table.column(columnIndex).search(value ? `^${escaped}$` : '', true, false).draw();
+    }
+
+    function populateSelect(selectId, columnIndex) {
+      const select = document.getElementById(selectId);
+      const currentValue = select.value;
+      const values = new Set();
+
+      table.column(columnIndex).data().toArray().forEach((value) => {
+        const clean = stripHtml(value);
+        if (clean) {
+          values.add(clean);
+        }
+      });
+
+      const sorted = Array.from(values).sort((a, b) => a.localeCompare(b));
+
+      select.innerHTML = '<option value="">All</option>';
+      sorted.forEach((value) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+      });
+
+      if (sorted.includes(currentValue)) {
+        select.value = currentValue;
+      }
+    }
+
+    function rebuildFilters() {
+      populateSelect('setFilter', 2);
+      populateSelect('rarityFilter', 4);
+      populateSelect('foilFilter', 8);
+      populateSelect('conditionFilter', 9);
+      populateSelect('languageFilter', 10);
+    }
+
+    document.getElementById('setFilter').addEventListener('change', () => applyExactFilter('setFilter', 2));
+    document.getElementById('rarityFilter').addEventListener('change', () => applyExactFilter('rarityFilter', 4));
+    document.getElementById('foilFilter').addEventListener('change', () => applyExactFilter('foilFilter', 8));
+    document.getElementById('conditionFilter').addEventListener('change', () => applyExactFilter('conditionFilter', 9));
+    document.getElementById('languageFilter').addEventListener('change', () => applyExactFilter('languageFilter', 10));
+
+    document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+      ['setFilter', 'rarityFilter', 'foilFilter', 'conditionFilter', 'languageFilter'].forEach((id) => {
+        document.getElementById(id).value = '';
+      });
+
+      [2, 4, 8, 9, 10].forEach((columnIndex) => {
+        table.column(columnIndex).search('', true, false);
+      });
+
+      table.draw();
+    });
+
+    rebuildFilters();
+
+    function renderNameCell(card) {
+      const previewImage = escapeHtml(card.image_normal || card.image_small || '');
+      const name = escapeHtml(card.name || 'Unknown');
+
+      if (card.scryfall_uri) {
+        return `
+          <a
+            href="${escapeHtml(card.scryfall_uri)}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="js-preview-target"
+            data-preview-image="${previewImage}"
+          >
+            ${name}
+          </a>
+        `;
+      }
+
+      return `
+        <span class="js-preview-target" data-preview-image="${previewImage}">
+          ${name}
+        </span>
+      `;
+    }
+
+    function renderImageCell(card) {
+      if (!card.image_small) {
+        return '';
+      }
+
+      return `
+        <img
+          src="${escapeHtml(card.image_small)}"
+          alt="${escapeHtml(card.name || 'Card image')}"
+          class="card-thumb js-preview-target"
+          data-preview-image="${escapeHtml(card.image_normal || card.image_small)}"
+        >
+      `;
+    }
+
+    function applyCardUpdate(card) {
+      const rows = document.querySelectorAll(`tr[data-scryfall-id="${CSS.escape(card.scryfall_id)}"]`);
+
+      rows.forEach((row) => {
+        row.querySelector('.js-card-image').innerHTML = renderImageCell(card);
+        row.querySelector('.js-card-name').innerHTML = renderNameCell(card);
+        row.querySelector('.js-card-set').textContent = card.set_code ? card.set_code.toUpperCase() : '';
+        row.querySelector('.js-card-collector').textContent = card.collector_number || '';
+        row.querySelector('.js-card-rarity').textContent = card.rarity || '';
+        row.querySelector('.js-card-mana').textContent = card.mana_cost || '';
+        row.querySelector('.js-card-type').textContent = card.type_line || '';
+      });
+
+      table.rows().invalidate().draw(false);
+    }
+
+    async function pollUpdatedCards() {
+      if (!updatePolling) return;
+
+      try {
+        let url = '/api/updated-cards';
+        if (lastUpdatedAt) {
+          url += `?since=${encodeURIComponent(lastUpdatedAt)}`;
+        }
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.cards && data.cards.length) {
+          data.cards.forEach((card) => {
+            applyCardUpdate(card);
+          });
+
+          lastUpdatedAt = data.cards[data.cards.length - 1].updated_at;
+          rebuildFilters();
+        }
+      } catch (err) {
+        console.error('Failed to fetch updated cards', err);
+      } finally {
+        window.setTimeout(pollUpdatedCards, 1500);
+      }
+    }
 
     async function pollSyncStatus() {
-      if (!polling) return;
+      if (!progressPolling) return;
 
       try {
         const response = await fetch('/api/sync-status');
@@ -114,7 +343,6 @@
         const bar = document.getElementById('syncProgressBar');
         const progressText = document.getElementById('syncProgressText');
         const currentCard = document.getElementById('syncCurrentCard');
-        const errorText = document.getElementById('syncErrorText');
 
         const running = data.is_running || (data.total_cards > 0 && data.processed_cards < data.total_cards);
 
@@ -132,40 +360,95 @@
             currentCard.textContent = 'Waiting...';
           }
 
-          if (data.last_error) {
-            errorText.style.display = 'block';
-            errorText.textContent = data.last_error;
-          } else {
-            errorText.style.display = 'none';
+          if (data.last_error && data.last_error !== lastSeenError) {
+            lastSeenError = data.last_error;
+            pushFlash(data.last_error, 'danger', 7000);
           }
 
-          // ✅ FINISHED STATE
           if (!data.is_running && data.total_cards > 0 && data.processed_cards >= data.total_cards) {
-            polling = false;
+            progressPolling = false;
 
             bar.classList.remove('progress-bar-animated');
             bar.classList.remove('progress-bar-striped');
             bar.classList.add('bg-success');
 
-            currentCard.innerHTML = `
-              Sync complete.
-              <button class="btn btn-sm btn-primary ms-2" onclick="window.location.reload()">
-                Refresh Data
-              </button>
-            `;
+            currentCard.textContent = 'Sync complete';
+
+            window.setTimeout(() => {
+              card.style.display = 'none';
+            }, 4000);
 
             return;
           }
-
-          setTimeout(pollSyncStatus, 1000);
         }
+
+        window.setTimeout(pollSyncStatus, 1000);
       } catch (err) {
         console.error('Failed to fetch sync status', err);
-        setTimeout(pollSyncStatus, 2000);
+        window.setTimeout(pollSyncStatus, 2000);
       }
     }
 
+    const hoverPreview = document.getElementById('hoverPreview');
+    const hoverPreviewImage = document.getElementById('hoverPreviewImage');
+
+    function positionPreview(event) {
+      const gap = 20;
+      let left = event.clientX + gap;
+      let top = event.clientY - 40;
+
+      const width = 320;
+      const height = 445;
+
+      if (left + width > window.innerWidth - 16) {
+        left = event.clientX - width - gap;
+      }
+
+      if (top + height > window.innerHeight - 16) {
+        top = window.innerHeight - height - 16;
+      }
+
+      if (top < 16) {
+        top = 16;
+      }
+
+      hoverPreview.style.left = `${left}px`;
+      hoverPreview.style.top = `${top}px`;
+    }
+
+    document.addEventListener('mouseover', (event) => {
+      const target = event.target.closest('.js-preview-target');
+      if (!target) return;
+
+      const image = target.dataset.previewImage;
+      if (!image) return;
+
+      hoverPreviewImage.src = image;
+      hoverPreview.style.display = 'block';
+      positionPreview(event);
+    });
+
+    document.addEventListener('mousemove', (event) => {
+      if (hoverPreview.style.display === 'block') {
+        positionPreview(event);
+      }
+    });
+
+    document.addEventListener('mouseout', (event) => {
+      const target = event.target.closest('.js-preview-target');
+      if (!target) return;
+
+      const related = event.relatedTarget && event.relatedTarget.closest
+        ? event.relatedTarget.closest('.js-preview-target')
+        : null;
+
+      if (!related) {
+        hoverPreview.style.display = 'none';
+      }
+    });
+
     pollSyncStatus();
+    pollUpdatedCards();
   </script>
   {% endif %}
 {% endblock %}

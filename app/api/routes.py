@@ -1,11 +1,20 @@
+from datetime import datetime
+
+from flask import request
 from flask.views import MethodView
 from flask_smorest import Blueprint
 from sqlalchemy import select, func
 
 from app.extensions import db
+from app.models.scryfall import ScryfallCard
 from app.models.sync_status import SyncStatus
 from app.services.importer import get_collection_table
-from .schemas import HealthSchema, CollectionMetaSchema, SyncStatusSchema
+from .schemas import (
+    HealthSchema,
+    CollectionMetaSchema,
+    SyncStatusSchema,
+    UpdatedCardsResponseSchema,
+)
 
 api_bp = Blueprint("api", __name__, url_prefix="/api", description="ManaBox API")
 
@@ -50,4 +59,41 @@ class SyncStatusResource(MethodView):
             "current_card_name": status.current_card_name,
             "last_error": status.last_error,
             "percent": percent,
+        }
+
+
+@api_bp.route("/updated-cards")
+class UpdatedCardsResource(MethodView):
+    @api_bp.response(200, UpdatedCardsResponseSchema)
+    def get(self):
+        since_raw = request.args.get("since")
+        query = ScryfallCard.query
+
+        if since_raw:
+            try:
+                since_dt = datetime.fromisoformat(since_raw)
+                query = query.filter(ScryfallCard.updated_at > since_dt)
+            except ValueError:
+                pass
+
+        cards = query.order_by(ScryfallCard.updated_at.asc()).all()
+
+        return {
+            "cards": [
+                {
+                    "scryfall_id": card.scryfall_id,
+                    "name": card.name,
+                    "set_code": card.set_code,
+                    "set_name": card.set_name,
+                    "collector_number": card.collector_number,
+                    "rarity": card.rarity,
+                    "mana_cost": card.mana_cost,
+                    "type_line": card.type_line,
+                    "image_small": card.image_small,
+                    "image_normal": card.image_normal,
+                    "scryfall_uri": card.scryfall_uri,
+                    "updated_at": card.updated_at.isoformat(),
+                }
+                for card in cards
+            ]
         }
